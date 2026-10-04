@@ -1,0 +1,381 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum TipoMovimentacao {
+  ENTRADA
+  SAIDA
+  AJUSTE
+}
+
+enum StatusVenda {
+  PENDENTE
+  CONFIRMADA
+  CANCELADA
+}
+
+enum FormaPagamento {
+  DINHEIRO
+  PIX
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  BOLETO
+  TRANSFERENCIA
+  OUTRO
+}
+
+enum StatusInventario {
+  ABERTO
+  EM_CONFERENCIA
+  CONCLUIDO
+  CANCELADO
+}
+
+enum TipoAuditoria {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  ENTRADA_ESTOQUE
+  SAIDA_ESTOQUE
+  AJUSTE_ESTOQUE
+  INVENTARIO
+  VENDA
+  CANCELAMENTO
+}
+
+enum NivelAcesso {
+  ADMIN
+  GERENTE
+  OPERADOR
+}
+
+// ============================================================
+// FUNCIONÁRIO
+// RF01, RF04, RF05
+// RNF01, RNF02, RNF19, RNF20
+// ============================================================
+
+model Funcionario {
+  id             String      @id @default(uuid())
+  nome           String
+  cpf            String      @unique
+  dataNascimento DateTime
+  endereco       String
+  bairro         String
+  cidade         String
+  complemento    String?
+  cep            String
+  estado         String
+  telefone       String
+  login          String      @unique
+  senha          String
+  observacao     String?
+  nivelAcesso    NivelAcesso @default(OPERADOR)
+  ativo          Boolean     @default(true)
+  criadoEm       DateTime    @default(now())
+  atualizadoEm   DateTime    @updatedAt
+
+  movimentacoes Movimentacao[]
+  inventarios   Inventario[]   @relation("InventarioResponsavel")
+  aprovacoes    Inventario[]   @relation("InventarioAprovador")
+  vendas        Venda[]
+  auditorias    Auditoria[]
+
+  @@index([nome])
+  @@index([ativo])
+}
+
+// ============================================================
+// FORNECEDOR
+// RF02, RF03
+// ============================================================
+
+model Fornecedor {
+  id                String   @id @default(uuid())
+  razaoSocial       String
+  cnpj              String   @unique
+  inscricaoEstadual String?
+  endereco          String
+  bairro            String
+  cidade            String
+  complemento       String?
+  cep               String
+  estado            String
+  telefone          String
+  pessoaContato     String
+  email             String
+  observacao        String?
+  ativo             Boolean  @default(true)
+  criadoEm          DateTime @default(now())
+  atualizadoEm      DateTime @updatedAt
+
+  produtos Produto[]
+
+  @@index([razaoSocial])
+  @@index([ativo])
+}
+
+// ============================================================
+// PRODUTO
+// RF06, RF07
+// RF10, RF11
+// ============================================================
+
+model Produto {
+  id            String   @id @default(uuid())
+  nome          String
+  lote          String
+  codigoInterno String   @unique
+  codigoBarras  String?  @unique
+  precoCusto    Decimal  @db.Decimal(12, 2)
+  precoVenda    Decimal  @db.Decimal(12, 2)
+  impostos      Decimal? @db.Decimal(12, 2)
+  estoqueMinimo Int
+  descricao     String?
+  ativo         Boolean  @default(true)
+
+  fornecedorId String
+  fornecedor   Fornecedor @relation(fields: [fornecedorId], references: [id])
+
+  estoque         Estoque?
+  movimentacoes   Movimentacao[]
+  itensVenda      ItemVenda[]
+  itensInventario ItemInventario[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([nome])
+  @@index([fornecedorId])
+  @@index([lote])
+  @@index([ativo])
+}
+
+// ============================================================
+// ESTOQUE
+// RF10
+// Regras:
+// - estoque não pode ficar negativo
+// - estoque mínimo deve ser monitorado
+// ============================================================
+
+model Estoque {
+  id           String   @id @default(uuid())
+  produtoId    String   @unique
+  quantidade   Int      @default(0)
+  atualizadoEm DateTime @updatedAt
+
+  produto Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([quantidade])
+}
+
+// ============================================================
+// MOVIMENTAÇÕES DE ESTOQUE
+// RF10, RF11
+// RNF18, RNF19, RNF20
+// ============================================================
+
+model Movimentacao {
+  id                  String           @id @default(uuid())
+  tipo                TipoMovimentacao
+  quantidade          Int
+  quantidadeAnterior  Int
+  quantidadePosterior Int
+  motivo              String?
+  codigo              String           @unique
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  funcionarioId String
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
+
+  vendaId String?
+  venda   Venda?  @relation(fields: [vendaId], references: [id])
+
+  criadoEm DateTime @default(now())
+
+  @@index([produtoId])
+  @@index([funcionarioId])
+  @@index([tipo])
+  @@index([criadoEm])
+  @@index([vendaId])
+}
+
+// ============================================================
+// CLIENTE
+// RF12, RF13, RF15
+// ============================================================
+
+model Cliente {
+  id           String   @id @default(uuid())
+  nome         String
+  cpfCnpj      String   @unique
+  endereco     String
+  bairro       String
+  cidade       String
+  complemento  String?
+  cep          String
+  estado       String
+  telefone     String
+  email        String?
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  vendas Venda[]
+
+  @@index([nome])
+  @@index([ativo])
+}
+
+// ============================================================
+// VENDA
+// RF12, RF13, RF15
+// ============================================================
+
+model Venda {
+  id           String   @id @default(uuid())
+  numeroPedido String   @unique
+  dataVenda    DateTime @default(now())
+
+  subtotal Decimal @db.Decimal(12, 2)
+  desconto Decimal @default(0) @db.Decimal(12, 2)
+  impostos Decimal @default(0) @db.Decimal(12, 2)
+  total    Decimal @db.Decimal(12, 2)
+
+  formaPagamento FormaPagamento
+  status         StatusVenda    @default(PENDENTE)
+
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id])
+
+  funcionarioId String
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
+
+  itens         ItemVenda[]
+  movimentacoes Movimentacao[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([dataVenda])
+  @@index([status])
+  @@index([clienteId])
+  @@index([funcionarioId])
+  @@index([formaPagamento])
+}
+
+// ============================================================
+// ITENS DA VENDA
+// RF12
+// ============================================================
+
+model ItemVenda {
+  id String @id @default(uuid())
+
+  quantidade    Int
+  precoUnitario Decimal @db.Decimal(12, 2)
+  subtotal      Decimal @db.Decimal(12, 2)
+
+  vendaId String
+  venda   Venda  @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([vendaId])
+  @@index([produtoId])
+}
+
+// ============================================================
+// INVENTÁRIO
+// RF08, RF09
+// ============================================================
+
+model Inventario {
+  id     String           @id @default(uuid())
+  data   DateTime         @default(now())
+  status StatusInventario @default(ABERTO)
+
+  responsavelId String
+  responsavel   Funcionario @relation("InventarioResponsavel", fields: [responsavelId], references: [id])
+
+  aprovadorId String?
+  aprovador   Funcionario? @relation("InventarioAprovador", fields: [aprovadorId], references: [id])
+
+  observacao String?
+
+  itens ItemInventario[]
+
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+
+  @@index([data])
+  @@index([status])
+  @@index([responsavelId])
+  @@index([aprovadorId])
+}
+
+// ============================================================
+// ITENS DO INVENTÁRIO
+// RF09
+// ============================================================
+
+model ItemInventario {
+  id String @id @default(uuid())
+
+  lote              String
+  quantidadeSistema Int
+  quantidadeFisica  Int
+  divergencia       Int
+
+  observacao String?
+
+  inventarioId String
+  inventario   Inventario @relation(fields: [inventarioId], references: [id], onDelete: Cascade)
+
+  produtoId String
+  produto   Produto @relation(fields: [produtoId], references: [id])
+
+  @@index([inventarioId])
+  @@index([produtoId])
+}
+
+// ============================================================
+// AUDITORIA
+// RNF19, RNF20
+// ============================================================
+
+model Auditoria {
+  id         String        @id @default(uuid())
+  tipo       TipoAuditoria
+  entidade   String
+  entidadeId String?
+  descricao  String?
+
+  dadosAnteriores Json?
+  dadosNovos      Json?
+
+  funcionarioId String
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id])
+
+  criadoEm DateTime @default(now())
+
+  @@index([tipo])
+  @@index([entidade])
+  @@index([entidadeId])
+  @@index([funcionarioId])
+  @@index([criadoEm])
+}
