@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { createObserveModule } from '@nestjs/observe';
+//import { createObserveModule } from '@nestjs/observe';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
@@ -12,17 +12,17 @@ import { InventarioModule } from './modules/inventario/inventario.module';
 import { VendasModule } from './modules/vendas/vendas.module';
 import { RelatoriosModule } from './modules/relatorios/relatorios.module';
 
-export const { ObserveModule, ObserveInstrument } = createObserveModule();
+//export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
   imports: [
     // Distributed tracing, auto-correlated logs, request/job metrics, error
     // telemetry, alarms, and more — out of the box. Sign up at https://observe.nestjs.com
-    ObserveModule.forRoot({
-      appKey: 'YOUR_APP_KEY',
-      appSecret: 'YOUR_APP_SECRET',
-      serviceId: 'backend',
-    }),
+   // ObserveModule.forRoot({
+   //  appKey: 'YOUR_APP_KEY',
+    //  appSecret: 'YOUR_APP_SECRET',
+    //  serviceId: 'backend',
+    //}),
     DatabaseModule,
     AuthModule,
     FuncionariosModule,
