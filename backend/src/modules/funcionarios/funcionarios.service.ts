@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
+import * as argon2 from 'argon2';
 import { PrismaService } from '../../database/prisma/prisma.service';
 
 import { CreateFuncionarioDto } from './dto/create-funcionario.dto';
@@ -15,14 +16,42 @@ export class FuncionariosService {
   constructor(private prisma: PrismaService) {}
 
   // RF05: Cadastrar funcionário
-  async create(data: CreateFuncionarioDto) {
-    return this.prisma.funcionario.create({
-      data: {
-        ...data,
-        dataNascimento: new Date(data.dataNascimento),
-      },
-    });
-  }
+ async create(data: CreateFuncionarioDto) {
+  const senhaHash = await argon2.hash(data.senha, {
+    type: argon2.argon2id,
+    memoryCost: 19456,
+    timeCost: 2,
+    parallelism: 1,
+  });
+
+  return this.prisma.funcionario.create({
+    data: {
+      ...data,
+      senha: senhaHash,
+      dataNascimento: new Date(data.dataNascimento),
+    },
+
+    select: {
+      id: true,
+      nome: true,
+      cpf: true,
+      dataNascimento: true,
+      endereco: true,
+      bairro: true,
+      cidade: true,
+      complemento: true,
+      cep: true,
+      estado: true,
+      telefone: true,
+      login: true,
+      observacao: true,
+      nivelAcesso: true,
+      ativo: true,
+      criadoEm: true,
+      atualizadoEm: true,
+    },
+  });
+}
 
   // RF04: Consultar todos os cadastro de funcionário
   async findAll() {
@@ -71,41 +100,45 @@ export class FuncionariosService {
 
   // Atualizar funcionário
   async update(id: string, data: UpdateFuncionarioDto) {
-    await this.findById(id);
+  await this.findById(id);
 
-    const updateData = {
-      ...data,
-      ...(data.dataNascimento
-        ? {
-            dataNascimento: new Date(data.dataNascimento),
-          }
-        : {}),
-    };
+  const { senha, dataNascimento, ...dados } = data;
 
-    return this.prisma.funcionario.update({
-      where: { id },
-      data: updateData,
+  const dadosAtualizacao = {
+    ...dados,
+
+    ...(dataNascimento
+      ? { dataNascimento: new Date(dataNascimento) }
+      : {}),
+
+    ...(senha
+      ? {
+          senha: await argon2.hash(senha, {
+            type: argon2.argon2id,
+            memoryCost: 19456,
+            timeCost: 2,
+            parallelism: 1,
+          }),
+        }
+      : {}),
+  };
+
+  return this.prisma.funcionario.update({
+    where: { id },
+    data: dadosAtualizacao,
+
       select: {
         id: true,
         nome: true,
         cpf: true,
-        dataNascimento: true,
-        endereco: true,
-        bairro: true,
-        cidade: true,
-        complemento: true,
-        cep: true,
-        estado: true,
-        telefone: true,
         login: true,
-        observacao: true,
         nivelAcesso: true,
         ativo: true,
         criadoEm: true,
         atualizadoEm: true,
       },
     });
-  }
+  } 
 
   // Substituir funcionário
 async replace(id: string, data: ReplaceFuncionarioDto) {
@@ -149,26 +182,4 @@ async replace(id: string, data: ReplaceFuncionarioDto) {
     });
   }
 
-  // RF01: Login do funcionário
-  async login(login: string, senha: string) {
-    const funcionario = await this.prisma.funcionario.findUnique({
-      where: {
-        login,
-      },
-    });
-
-    if (!funcionario || funcionario.senha !== senha) {
-      throw new UnauthorizedException('Login ou senha inválidos');
-    }
-
-    return {
-      mensagem: 'Login realizado com sucesso',
-      funcionario: {
-        id: funcionario.id,
-        nome: funcionario.nome,
-        login: funcionario.login,
-        nivelAcesso: funcionario.nivelAcesso,
-      },
-    };
-  }
 }
